@@ -55,7 +55,6 @@ class OnsetsAndFrames(nn.Module):
         model_size = model_complexity * 16
         sequence_model = lambda input_size, output_size: BiLSTM(input_size, output_size // 2)
 
-        #self.spectrogram = MelSpectrogram(N_MELS, SAMPLE_RATE, WINDOW_LENGTH, HOP_LENGTH, mel_fmin=MEL_FMIN, mel_fmax=MEL_FMAX)
         self.spectrogram = Spectrogram.MelSpectrogram(SAMPLE_RATE, WINDOW_LENGTH, n_mels=N_MELS,  hop_length=HOP_LENGTH,fmin=MEL_FMIN, fmax=MEL_FMAX, trainable_mel=False, trainable_STFT=False)
         self.onset_stack = nn.Sequential(
             ConvStack(input_features, model_size),

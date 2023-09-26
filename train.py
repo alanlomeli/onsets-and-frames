@@ -21,7 +21,7 @@ ex = Experiment('train_transcriber')
 @ex.config
 def config():
     logdir = constants.LOG_DIR + '/transcriber-' + datetime.now().strftime('%y%m%d-%H%M%S')
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = constants.DEFAULT_DEVICE
     iterations = 500000
     resume_iteration = None
     checkpoint_interval = 1000
