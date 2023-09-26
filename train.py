@@ -13,18 +13,19 @@ from tqdm import tqdm
 
 from evaluate import evaluate
 from onsets_and_frames import *
+from onsets_and_frames import constants 
 
 ex = Experiment('train_transcriber')
 
 
 @ex.config
 def config():
-    logdir = 'runs/transcriber-' + datetime.now().strftime('%y%m%d-%H%M%S')
+    logdir = constants.LOG_DIR + '/transcriber-' + datetime.now().strftime('%y%m%d-%H%M%S')
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     iterations = 500000
     resume_iteration = None
     checkpoint_interval = 1000
-    train_on = 'MAESTRO'
+    train_on = constants.DATASET
 
     batch_size = 8
     sequence_length = 327680
@@ -61,16 +62,12 @@ def train(logdir, device, iterations, resume_iteration, checkpoint_interval, tra
     train_groups, validation_groups = ['train'], ['validation']
 
     if leave_one_out is not None:
-        all_years = {'2004', '2006', '2008', '2009', '2011', '2013', '2014', '2015', '2017'}
+        all_years = {'2004', '2006', '2008', '2009', '2011', '2013', '2014', '2015', '2017', '2018'}
         train_groups = list(all_years - {str(leave_one_out)})
         validation_groups = [str(leave_one_out)]
 
-    if train_on == 'MAESTRO':
-        dataset = MAESTRO(groups=train_groups, sequence_length=sequence_length)
-        validation_dataset = MAESTRO(groups=validation_groups, sequence_length=sequence_length)
-    else:
-        dataset = MAPS(groups=['AkPnBcht', 'AkPnBsdf', 'AkPnCGdD', 'AkPnStgb', 'SptkBGAm', 'SptkBGCl', 'StbgTGd2'], sequence_length=sequence_length)
-        validation_dataset = MAPS(groups=['ENSTDkAm', 'ENSTDkCl'], sequence_length=validation_length)
+    dataset = MAESTRO(groups=train_groups, sequence_length=sequence_length)
+    validation_dataset = MAESTRO(groups=validation_groups, sequence_length=sequence_length)
 
     loader = DataLoader(dataset, batch_size, shuffle=True, drop_last=True)
 
@@ -79,8 +76,8 @@ def train(logdir, device, iterations, resume_iteration, checkpoint_interval, tra
         optimizer = torch.optim.Adam(model.parameters(), learning_rate)
         resume_iteration = 0
     else:
-        model_path = os.path.join(logdir, f'model-{resume_iteration}.pt')
-        model = torch.load(model_path)
+        model_path = os.path.join(logdir, f'../model-{resume_iteration}.pt')
+        model = torch.load(model_path, map_location=device)
         optimizer = torch.optim.Adam(model.parameters(), learning_rate)
         optimizer.load_state_dict(torch.load(os.path.join(logdir, 'last-optimizer-state.pt')))
 
@@ -93,12 +90,14 @@ def train(logdir, device, iterations, resume_iteration, checkpoint_interval, tra
 
         loss = sum(losses.values())
         optimizer.zero_grad()
+
         loss.backward()
+        if clip_gradient_norm:
+            clip_grad_norm_(model.parameters(), clip_gradient_norm)
+
         optimizer.step()
         scheduler.step()
 
-        if clip_gradient_norm:
-            clip_grad_norm_(model.parameters(), clip_gradient_norm)
 
         for key, value in {'loss': loss, **losses}.items():
             writer.add_scalar(key, value.item(), global_step=i)

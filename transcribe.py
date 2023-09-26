@@ -1,19 +1,27 @@
 import argparse
 import os
 import sys
-
 import numpy as np
-import soundfile
+import librosa
+from nnAudio import Spectrogram
+
 from mir_eval.util import midi_to_hz
 
 from onsets_and_frames import *
 
+def float_samples_to_int16(y):
+  """Convert floating-point numpy array of audio samples to int16. Thanks @greenbech"""
+  # From https://github.com/tensorflow/magenta/blob/671501934ff6783a7912cc3e0e628fd0ea2dc609/magenta/music/audio_io.py#L48
+  if not issubclass(y.dtype.type, np.floating):
+    raise ValueError('input samples not floating-point')
+  return (y * np.iinfo(np.int16).max).astype(np.int16)
 
 def load_and_process_audio(flac_path, sequence_length, device):
 
     random = np.random.RandomState(seed=42)
 
-    audio, sr = soundfile.read(flac_path, dtype='int16')
+    audio, sr = librosa.load(flac_path, sr=SAMPLE_RATE)
+    audio = float_samples_to_int16(audio)
     assert sr == SAMPLE_RATE
 
     audio = torch.ShortTensor(audio)
@@ -37,8 +45,9 @@ def load_and_process_audio(flac_path, sequence_length, device):
 
 def transcribe(model, audio):
 
-    mel = melspectrogram(audio.reshape(-1, audio.shape[-1])[:, :-1]).transpose(-1, -2)
-    onset_pred, offset_pred, _, frame_pred, velocity_pred = model(mel)
+    spec = Spectrogram.MelSpectrogram(SAMPLE_RATE, WINDOW_LENGTH, n_mels=N_MELS,  hop_length=HOP_LENGTH,fmin=MEL_FMIN, fmax=MEL_FMAX, trainable_mel=False, trainable_STFT=False)
+    spec = spec(audio.reshape(-1, audio.shape[-1])[:, :-1]).transpose(-1, -2)
+    onset_pred, offset_pred, _, frame_pred, velocity_pred = model(spec.view(spec.size(0), 1, spec.size(1), spec.size(2)))
 
     predictions = {
             'onset': onset_pred.reshape((onset_pred.shape[1], onset_pred.shape[2])),

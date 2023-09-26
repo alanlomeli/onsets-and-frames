@@ -3,13 +3,13 @@ A rough translation of Magenta's Onsets and Frames implementation [1].
 
     [1] https://github.com/tensorflow/magenta/blob/master/magenta/models/onsets_frames_transcription/model.py
 """
-
+from nnAudio import Spectrogram
 import torch
 import torch.nn.functional as F
 from torch import nn
 
 from .lstm import BiLSTM
-from .mel import melspectrogram
+from .constants import *
 
 
 class ConvStack(nn.Module):
@@ -41,8 +41,7 @@ class ConvStack(nn.Module):
             nn.Dropout(0.5)
         )
 
-    def forward(self, mel):
-        x = mel.view(mel.size(0), 1, mel.size(1), mel.size(2))
+    def forward(self, x):
         x = self.cnn(x)
         x = x.transpose(1, 2).flatten(-2)
         x = self.fc(x)
@@ -56,6 +55,8 @@ class OnsetsAndFrames(nn.Module):
         model_size = model_complexity * 16
         sequence_model = lambda input_size, output_size: BiLSTM(input_size, output_size // 2)
 
+        #self.spectrogram = MelSpectrogram(N_MELS, SAMPLE_RATE, WINDOW_LENGTH, HOP_LENGTH, mel_fmin=MEL_FMIN, mel_fmax=MEL_FMAX)
+        self.spectrogram = Spectrogram.MelSpectrogram(SAMPLE_RATE, WINDOW_LENGTH, n_mels=N_MELS,  hop_length=HOP_LENGTH,fmin=MEL_FMIN, fmax=MEL_FMAX, trainable_mel=False, trainable_STFT=False)
         self.onset_stack = nn.Sequential(
             ConvStack(input_features, model_size),
             sequence_model(model_size, model_size),
@@ -99,8 +100,10 @@ class OnsetsAndFrames(nn.Module):
         frame_label = batch['frame']
         velocity_label = batch['velocity']
 
-        mel = melspectrogram(audio_label.reshape(-1, audio_label.shape[-1])[:, :-1]).transpose(-1, -2)
-        onset_pred, offset_pred, _, frame_pred, velocity_pred = self(mel)
+
+        spec = self.spectrogram(audio_label.reshape(-1, audio_label.shape[-1])[:, :-1]).transpose(-1,-2)
+
+        onset_pred, offset_pred, _, frame_pred, velocity_pred = self(spec.view(spec.size(0), 1, spec.size(1), spec.size(2)))
 
         predictions = {
             'onset': onset_pred.reshape(*onset_label.shape),

@@ -9,11 +9,12 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from .constants import *
+from . import constants
 from .midi import parse_midi
 
 
 class PianoRollAudioDataset(Dataset):
-    def __init__(self, path, groups=None, sequence_length=None, seed=42, device=DEFAULT_DEVICE):
+    def __init__(self, path, groups=None, sequence_length=None, seed=42, device=constants.DEFAULT_DEVICE):
         self.path = path
         self.groups = groups if groups is not None else self.available_groups()
         self.sequence_length = sequence_length
@@ -130,7 +131,7 @@ class PianoRollAudioDataset(Dataset):
 
 class MAESTRO(PianoRollAudioDataset):
 
-    def __init__(self, path='data/MAESTRO', groups=None, sequence_length=None, seed=42, device=DEFAULT_DEVICE):
+    def __init__(self, path=constants.DATASET_PATH, groups=None, sequence_length=None, seed=42, device=DEFAULT_DEVICE):
         super().__init__(path, groups if groups is not None else ['train'], sequence_length, seed, device)
 
     @classmethod
@@ -149,9 +150,17 @@ class MAESTRO(PianoRollAudioDataset):
             if len(files) == 0:
                 raise RuntimeError(f'Group {group} is empty')
         else:
-            metadata = json.load(open(os.path.join(self.path, 'maestro-v1.0.0.json')))
-            files = sorted([(os.path.join(self.path, row['audio_filename'].replace('.wav', '.flac')),
-                             os.path.join(self.path, row['midi_filename'])) for row in metadata if row['split'] == group])
+            metadata = json.load(open(os.path.join(self.path, constants.DATASET_JSON)))
+            files = []
+            for key, value in metadata['split'].items():
+                if value == group:
+                    audio_filename = metadata['audio_filename'][key]
+                    midi_filename = metadata['midi_filename'][key]
+
+                    audio_path = os.path.join(self.path, audio_filename.replace('.wav', '.flac'))
+                    midi_path = os.path.join(self.path, midi_filename)
+
+                    files.append((audio_path, midi_path))
 
             files = [(audio if os.path.exists(audio) else audio.replace('.flac', '.wav'), midi) for audio, midi in files]
 
@@ -163,21 +172,3 @@ class MAESTRO(PianoRollAudioDataset):
                 np.savetxt(tsv_filename, midi, fmt='%.6f', delimiter='\t', header='onset,offset,note,velocity')
             result.append((audio_path, tsv_filename))
         return result
-
-
-class MAPS(PianoRollAudioDataset):
-    def __init__(self, path='data/MAPS', groups=None, sequence_length=None, seed=42, device=DEFAULT_DEVICE):
-        super().__init__(path, groups if groups is not None else ['ENSTDkAm', 'ENSTDkCl'], sequence_length, seed, device)
-
-    @classmethod
-    def available_groups(cls):
-        return ['AkPnBcht', 'AkPnBsdf', 'AkPnCGdD', 'AkPnStgb', 'ENSTDkAm', 'ENSTDkCl', 'SptkBGAm', 'SptkBGCl', 'StbgTGd2']
-
-    def files(self, group):
-        flacs = glob(os.path.join(self.path, 'flac', '*_%s.flac' % group))
-        tsvs = [f.replace('/flac/', '/tsv/matched/').replace('.flac', '.tsv') for f in flacs]
-
-        assert(all(os.path.isfile(flac) for flac in flacs))
-        assert(all(os.path.isfile(tsv) for tsv in tsvs))
-
-        return sorted(zip(flacs, tsvs))

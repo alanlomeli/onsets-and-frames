@@ -1,10 +1,12 @@
 scipy>=1.1.0
 torch>=1.2.0
 SoundFile>=0.10.2
-sacred==0.7.4
+sacred==0.8.4
 librosa>=0.6.2
 numpy>=1.15.0
 tqdm>=4.28.1
 git+https://github.com/craffel/mir_eval.git
 mido>=1.2.9
 Pillow>=6.2.0
+tensorboard>=2.14.0
+nnAudio>=0.3.2

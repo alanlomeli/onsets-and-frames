@@ -112,7 +112,7 @@ def evaluate_file(model_file, dataset, dataset_group, sequence_length, save_path
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('model_file', type=str)
-    parser.add_argument('dataset', nargs='?', default='MAPS')
+    parser.add_argument('dataset', nargs='?', default=constants.DEFAULT_DATASET)
     parser.add_argument('dataset_group', nargs='?', default=None)
     parser.add_argument('--save-path', default=None)
     parser.add_argument('--sequence-length', default=None, type=int)
